@@ -1,0 +1,319 @@
+<html>
+<head>
+    <title>Words</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <script>
+        const counter = () => {
+            const _counter = {
+                prevPeriodRate: undefined,
+                currentPeriodCount: 0,
+                currentDuration: 0,
+                durationStarted: undefined,
+                countEach() {
+                    if (!_counter.durationStarted) {
+                        _counter.durationStarted = Date.now();
+                    }
+                    _counter.currentPeriodCount += 1;
+                    _counter.currentDuration = Date.now() - _counter.durationStarted;
+
+                    // if current duration exceeded 60 seconds, put currentRate into prevPeriodRate
+                    if (_counter.currentDuration > 60000) {
+                        _counter.prevPeriodRate = _counter.currentPeriodCount / _counter.currentDuration;
+                        _counter.currentPeriodCount = 0;
+                        _counter.currentDuration = 0;
+                        _counter.durationStarted = Date.now();
+                    }
+                },
+                currentRunningRate() {
+                    if (!_counter.durationStarted) {
+                        return 0;
+                    }
+                    const currentCharPerMs =  _counter.currentDuration
+                        ? _counter.currentPeriodCount / _counter.currentDuration
+                        : 0;
+                    const rate = _counter.prevPeriodRate !== undefined
+                        ? ((currentCharPerMs + _counter.prevPeriodRate) / 2)
+                        : currentCharPerMs;
+                    return rate * 1000 * 60;
+                }
+            }
+            return _counter;
+        }
+        const speaker = () => {
+            const speech = speechSynthesis;
+            const _spk = {
+                speaking: false,
+                speak(text, lang) {
+                    if (!_spk.speaking) {
+                        _spk.speaking = true;
+                        const utterance = new SpeechSynthesisUtterance(text);
+                        utterance.lang = lang;
+                        speech.speak(utterance);
+                        utterance.onend = () => {
+                            _spk.speaking = false;
+                        }
+                    }
+                }
+            }
+            return _spk;
+        }
+
+        const wp = () => {
+            const _wp = {
+                w: undefined,
+                setWords: (words) => {
+                    _wp.w = words;
+                },
+                pick: () => {
+                    const r = Math.floor(Math.random() * _wp.w.words.length);
+                    return _wp.w.words[r];
+                }
+            }
+            return _wp;
+        }
+
+        const chart = (polylineElement) => {
+            const _chart = {
+                points: [],
+                currentPoint: 0,
+                tid: '',
+                introAnimate(until) {
+                    _chart.tid = setTimeout(() => {
+                        _chart.currentPoint += 10
+                        _chart.points.push(_chart.currentPoint);
+                        _chart.points.push(Math.floor(Math.random() * 50) + 25);
+                        polylineElement.setAttribute('points', _chart.points.join(' '));
+                        if (_chart.currentPoint < (until * 10)) {
+                            _chart.introAnimate(until);
+                        }
+                    }, 100);
+                },
+                clear() {
+                    clearTimeout(_chart.tid);
+                    _chart.points = [];
+                    _chart.currentPoint = 0;
+                    polylineElement.setAttribute('points', '');
+                },
+                update: (wpm) => {
+                    _chart.currentPoint += 1;
+                    if (_chart.currentPoint > 2) {
+                        const chartValue = Math.min(100 - Math.floor(wpm), 100);
+                        _chart.points.push(_chart.currentPoint + 2);
+                        _chart.points.push(chartValue);
+                        const pointToRender = _chart.points.map((p, i) => {
+                            return i % 2 === 0 ? Math.floor((i / 2) * (300 / (_chart.points.length / 2))) : p;
+                        });
+                        polylineElement.setAttribute('points', pointToRender.join(' '));
+                    }
+                }
+            }
+            return _chart;
+        }
+
+        const state = {
+            languageSelected: 'pt-BR',
+            cw: undefined,
+            ct: '',
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // https://github.com/SMenigat/thousand-most-common-words
+
+            //get lang-select element
+            const langSelect = document.getElementById('lang-select');
+            const l0 = document.getElementById('line0');
+            const l1 = document.getElementById('line1');
+            const l2 = document.getElementById('line2');
+            const l3 = document.getElementById('line3');
+            const polyline = document.querySelector('polyline');
+
+            const speakerInstance = speaker();
+            const wpInstance = wp();
+            const charCounter = counter();
+            const wpmChart = chart(polyline);
+            wpmChart.introAnimate(30);
+
+            const refreshWord = () => {
+                const w = wpInstance.pick();
+                wpmChart.update(charCounter.currentRunningRate() / 5);
+                l1.textContent = w.targetWord;
+                l2.textContent = w.englishWord;
+                l3.textContent = '';
+                state.cw = w.englishWord;
+                state.ct = '';
+                speakerInstance.speak(w.targetWord, state.languageSelected);
+            }
+            const onBeginHandler = () => {
+                //remove tabindex from l2
+                l2.removeAttribute('tabindex');
+                //remove #instruction
+                const instruction = document.getElementById('instruction');
+                instruction.parentNode.removeChild(instruction);
+                wpmChart.clear();
+                refreshWord();
+            }
+            const onKeyHandler = event => {
+                if (event.keyCode === 8) {
+                    state.ct = state.ct.slice(0, -1);
+                    l3.textContent = state.ct;
+                } else if (event.key.match(/^[a-zA-Z\’]$/)) {
+                    state.ct += event.key;
+                    l3.textContent = state.ct;
+                    if (state.cw.slice(0, state.ct.length) === state.ct) {
+                       charCounter.countEach();
+                    } else {
+                        speakerInstance.speak(l1.textContent, state.languageSelected);
+                    }
+                }
+
+                // wpm display
+                const wpm = (charCounter.currentRunningRate() / 5).toFixed(1);
+                l0.textContent = `${wpm}`;
+
+
+                if (state.ct === state.cw) {
+                    refreshWord();
+                }
+            }
+
+            const onLangSelectChangeHandler = (event) => {
+                const langCode = event.target.value;
+                const wordsFile = langCode === 'pt-BR' ? 'words/pt.json' : `words/${langCode}.json`;
+
+                fetch(wordsFile)
+                    .then(response => response.json())
+                    .then(data => {
+                        wpInstance.setWords(data);
+                        state.languageSelected = event.target.value;
+                    });
+            };
+
+            // get dictionary.json file in the root directory using fetch
+            fetch('dictionary.json')
+                .then(response => response.json())
+                .then(data => {
+                    //get intitial language
+                    const wordsFile = state.languageSelected === 'pt-BR' ? 'words/pt.json' : `words/${langCode}.json`;
+                    fetch(wordsFile)
+                        .then(response => response.json())
+                        .then(data => {
+                            wpInstance.setWords(data);
+                        });
+
+                    // populate langSelect with the data.name and data.code
+                    data.forEach(function (item) {
+                        const option = document.createElement('option');
+                        option.value = item.code;
+                        option.textContent = item.name;
+                        langSelect.appendChild(option);
+                    });
+                });
+
+            // on langSelect change, fetch the corresponding words/*.json file
+            // with the exception of pt_BR.json fetch just words/pt.json
+            langSelect.addEventListener('change', onLangSelectChangeHandler);
+
+            document.addEventListener('keydown', onKeyHandler);
+            l2.addEventListener('click', onBeginHandler);
+            l2.addEventListener('keydown', onBeginHandler);
+
+        });
+    </script>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+        html {
+            background-color: darkblue;
+        }
+        #app {
+            padding: 10px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            color: white;
+            font-family: monospace;
+        }
+        #line0 {
+            text-align: center;
+        }
+        #line1 {
+            text-align: center;
+            font-size: 0.8rem;
+        }
+        .container {
+            display: flex;
+            flex-grow: 1;
+            flex-direction: column;
+            justify-content: center;
+            line-height: 1.7rem;
+        }
+        .words-container {
+            display: flex;
+            justify-content: center;
+        }
+        #line2 {
+            font-size: 1.2rem;
+            height: 1.2rem;
+            cursor: pointer;
+        }
+        #line3 {
+            font-size: 1.2rem;
+            height: 1.2rem;
+        }
+        #instruction {
+            text-align: center;
+            font-size: 0.8rem;
+            color: #0074d9;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+        }
+        .chart {
+            background: transparent;
+            width: 300px;
+            height: 100px;
+            border-left: 2px dotted #0074d9;
+            border-bottom: 2px dotted #0074d9;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div>
+            <select id="lang-select">
+                <option value="pt-BR">Portuguese (Brazil)</option>
+            </select>
+        </div>
+        <div class="container">
+            <div id="line0"></div>
+            <div id="line1"></div>
+            <div class="words-container">
+                <div>
+                    <div id="line2" role="button" tabIndex="0">Tap to begin!</div>
+                    <div id="line3"></div>
+                </div>
+            </div>
+            <div id="instruction">(Then type the English word you see below)</div>
+        </div>
+        <div class="chart-container">
+            <svg viewBox="0 0 300 100" class="chart">
+                <polyline
+                        fill="none"
+                        stroke="#0074d9"
+                        stroke-width="2"
+                />
+
+            </svg>
+        </div>
+    </div>
+</body>
+</html>
