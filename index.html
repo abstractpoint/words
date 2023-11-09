@@ -179,7 +179,7 @@
 
             const onLangSelectChangeHandler = (event) => {
                 const langCode = event.target.value;
-                const wordsFile = langCode === 'pt-BR' ? 'words/pt.json' : `words/${langCode}.json`;
+                const wordsFile = langCode === 'pt-BR' ? 'pt.json' : `${langCode}.json`;
 
                 fetch(wordsFile)
                     .then(response => response.json())
