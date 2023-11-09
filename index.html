@@ -149,7 +149,7 @@
                 l2.removeAttribute('tabindex');
                 //remove #instruction
                 const instruction = document.getElementById('instruction');
-                instruction.parentNode.removeChild(instruction);
+                instruction && instruction.parentNode.removeChild(instruction);
                 wpmChart.clear();
                 refreshWord();
             }
@@ -298,7 +298,7 @@
             <div id="line1"></div>
             <div class="words-container">
                 <div>
-                    <div id="line2" role="button" tabIndex="0">Tap to begin!</div>
+                    <div id="line2">Tap to begin!</div>
                     <div id="line3"></div>
                 </div>
             </div>
