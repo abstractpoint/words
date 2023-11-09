@@ -194,7 +194,7 @@
                 .then(response => response.json())
                 .then(data => {
                     //get intitial language
-                    const wordsFile = state.languageSelected === 'pt-BR' ? 'words/pt.json' : `words/${langCode}.json`;
+                    const wordsFile = state.languageSelected === 'pt-BR' ? 'pt.json' : `${langCode}.json`;
                     fetch(wordsFile)
                         .then(response => response.json())
                         .then(data => {
