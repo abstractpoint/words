@@ -67,7 +67,11 @@
                 },
                 pick: () => {
                     const r = Math.floor(Math.random() * _wp.w.words.length);
-                    return _wp.w.words[r];
+                    const word = _wp.w.words[r];
+                    return {
+                        ...word,
+                        englishWord: word.englishWord.replace('’', '\''),
+                    };
                 }
             }
             return _wp;
@@ -145,19 +149,22 @@
                 speakerInstance.speak(w.targetWord, state.languageSelected);
             }
             const onBeginHandler = () => {
-                //remove tabindex from l2
-                l2.removeAttribute('tabindex');
+                if (!wpInstance.w) {
+                    return;
+                }
                 //remove #instruction
                 const instruction = document.getElementById('instruction');
                 instruction && instruction.parentNode.removeChild(instruction);
                 wpmChart.clear();
                 refreshWord();
+                l2.removeEventListener('click', onBeginHandler);
+                l2.addEventListener('click', refreshWord);
             }
             const onKeyHandler = event => {
                 if (event.keyCode === 8) {
                     state.ct = state.ct.slice(0, -1);
                     l3.textContent = state.ct;
-                } else if (event.key.match(/^[a-zA-Z\’]$/)) {
+                } else if (event.key.match(/^[a-zA-Z']$/)) {
                     state.ct += event.key;
                     l3.textContent = state.ct;
                     if (state.cw.slice(0, state.ct.length) === state.ct) {
@@ -181,7 +188,7 @@
                 const langCode = event.target.value;
                 const wordsFile = langCode === 'pt-BR' ? 'pt.json' : `${langCode}.json`;
 
-                fetch(wordsFile)
+                fetch(`dict/${wordsFile}`)
                     .then(response => response.json())
                     .then(data => {
                         wpInstance.setWords(data);
@@ -195,7 +202,7 @@
                 .then(data => {
                     //get intitial language
                     const wordsFile = state.languageSelected === 'pt-BR' ? 'pt.json' : `${langCode}.json`;
-                    fetch(wordsFile)
+                    fetch(`dict/${wordsFile}`)
                         .then(response => response.json())
                         .then(data => {
                             wpInstance.setWords(data);
@@ -216,7 +223,6 @@
 
             document.addEventListener('keydown', onKeyHandler);
             l2.addEventListener('click', onBeginHandler);
-            l2.addEventListener('keydown', onBeginHandler);
 
         });
     </script>
@@ -261,12 +267,12 @@
         }
         #line2 {
             font-size: 1.2rem;
-            height: 1.2rem;
+            height: 1.7rem;
             cursor: pointer;
         }
         #line3 {
             font-size: 1.2rem;
-            height: 1.2rem;
+            height: 1.7rem;
         }
         #instruction {
             text-align: center;
